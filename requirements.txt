@@ -1,0 +1,5 @@
+numpy==1.21.4
+opencv-python==4.9.0.80
+pip==24.0
+PyAudio==0.2.14
+setuptools==58.1.0
