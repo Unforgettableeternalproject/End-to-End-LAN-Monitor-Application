@@ -24,8 +24,10 @@ class agent_sender:
                 # Send the frame data
                 client_socket.sendall(data)
             except Exception as e:
-                print("Error encountered:", e)
+                print("Error encountered in sending video:", e)
+                break  # Exit the loop on error
         cap.release()
+        client_socket.close()  # Close the connection
 
     # Function to handle audio streaming
     def send_audio(self, client_socket):
@@ -45,12 +47,14 @@ class agent_sender:
             try:
                 data = stream.read(CHUNK)
                 client_socket.sendall(data)
-            except:
-                break
+            except Exception as e:
+                print("Error encountered in sending audio:", e)
+                break  # Exit the loop on error
 
         stream.stop_stream()
         stream.close()
         p.terminate()
+        client_socket.close()  # Close the connection
 
     # Main function
     def sender(self, startingPort):
