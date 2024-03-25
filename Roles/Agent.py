@@ -3,10 +3,14 @@ import numpy as np
 import socket
 import pyaudio
 import threading
+import logging
+import datetime
 
+logging.basicConfig(filename='agent.log', level=logging.DEBUG)  # Adjust filename and level as needed
 
 class agent_sender:
     def __init__(self) -> None:
+        logging.info(f"################################\nTimestamp: {datetime.datetime.now().timestamp()}")
         pass
 
     # Function to handle video streaming
@@ -24,9 +28,13 @@ class agent_sender:
                 _, buffer = cv2.imencode('.jpg', frame)
                 data = buffer.tobytes()
 
-                # Break data into chunks (e.g., 4096 bytes)
+                # Identify data type and prefix with a header byte
+                data_type = b'V'  # Video data marker (e.g., 'V')
+                data_with_header = data_type + data
+
+                # Break data into chunks
                 chunk_size = 4096
-                chunks = [data[i:i + chunk_size] for i in range(0, len(data), chunk_size)]
+                chunks = [data_with_header[i:i + chunk_size] for i in range(0, len(data_with_header), chunk_size)]
 
                 # Send each chunk with its size prefix
                 for chunk in chunks:
@@ -34,7 +42,7 @@ class agent_sender:
                     client_socket.sendall(chunk_size.to_bytes(4, byteorder='big'))  # Send chunk size first
                     client_socket.sendall(chunk)  # Send the chunk data
         except Exception as e:
-            print(f"Error encountered in sending video: {e}")
+            logging.error(f"Error encountered in sending video: {e}")
 
         finally:
             # Release resources
@@ -58,9 +66,14 @@ class agent_sender:
         while running:
             try:
                 data = stream.read(CHUNK)
-                client_socket.sendall(data)
+
+                # Identify data type and prefix with a header byte
+                data_type = b'A'  # Audio data marker (e.g., 'A')
+                data_with_header = data_type + data
+
+                client_socket.sendall(data_with_header)
             except Exception as e:
-                print(f"Error encountered in sending audio:{e}")
+                logging.error(f"Error encountered in sending audio:{e}")
                 running = False  # Set flag to stop the loop
 
         # Close stream and terminate PyAudio
