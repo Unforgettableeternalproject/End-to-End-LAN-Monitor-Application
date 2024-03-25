@@ -11,7 +11,7 @@
     <OutputPath>.</OutputPath>
     <Name>End-to-end LAN Monitor Application</Name>
     <RootNamespace>End-to-end LAN Monitor Application</RootNamespace>
-    <InterpreterId>MSBuild|env_lp|$(MSBuildProjectFullPath)</InterpreterId>
+    <InterpreterId>MSBuild|env_pc|$(MSBuildProjectFullPath)</InterpreterId>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -35,6 +35,15 @@
       <Id>env_lp</Id>
       <Version>3.10</Version>
       <Description>env_lp (Python 3.10 (64-bit))</Description>
+      <InterpreterPath>Scripts\python.exe</InterpreterPath>
+      <WindowsInterpreterPath>Scripts\pythonw.exe</WindowsInterpreterPath>
+      <PathEnvironmentVariable>PYTHONPATH</PathEnvironmentVariable>
+      <Architecture>X64</Architecture>
+    </Interpreter>
+    <Interpreter Include="env_pc\">
+      <Id>env_pc</Id>
+      <Version>3.10</Version>
+      <Description>env_pc (Python 3.10 (64-bit))</Description>
       <InterpreterPath>Scripts\python.exe</InterpreterPath>
       <WindowsInterpreterPath>Scripts\pythonw.exe</WindowsInterpreterPath>
       <PathEnvironmentVariable>PYTHONPATH</PathEnvironmentVariable>

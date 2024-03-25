@@ -19,7 +19,10 @@ class agent_sender:
             _, buffer = cv2.imencode('.jpg', frame)
             data = buffer.tobytes()
             # Send the size of the frame first
-            client_socket.sendall(len(data).to_bytes(4, byteorder='big'))
+            try:
+                client_socket.sendall(len(data).to_bytes(4, byteorder='big'))
+            except Exception as e:
+                print("Error encountered:", e)
             # Send the frame data
             client_socket.sendall(data)
         cap.release()
