@@ -24,15 +24,22 @@ class agent_sender:
                 _, buffer = cv2.imencode('.jpg', frame)
                 data = buffer.tobytes()
 
-                # Prepend data type header to each chunk
-                chunk_size = 4096
-                chunks = [b'V' + data[i:i + chunk_size] for i in range(0, len(data), chunk_size)]  # Header for every chunk
+                # Prepend data type header to the entire data (not each chunk)
+                data_with_header = b'V' + data
 
-                # Send each chunk with its size prefix
-                for chunk in chunks:
-                    chunk_size = len(chunk)
-                    client_socket.sendall(chunk_size.to_bytes(4, byteorder='big'))  # Send chunk size first
-                    client_socket.sendall(chunk)  # Send the chunk data
+                # Get total data size
+                data_size = len(data_with_header)
+
+                # Send data size and wait for acknowledgment (ACK)
+                client_socket.sendall(data_size.to_bytes(4, byteorder='big'))  # Send total data size
+                ack = client_socket.recv(4)  # Wait for ACK (4 bytes)
+                if not ack or ack != b'ACK':
+                    logging.error("Failed to receive acknowledgment. Retrying...")
+                    continue  # Retry on missing or incorrect ACK
+
+                # Send the data itself
+                client_socket.sendall(data_with_header)
+
         except Exception as e:
             logging.error(f"Error encountered in sending video: {e}")
 
