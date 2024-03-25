@@ -15,14 +15,13 @@ class monitor_receiver:
         logging.info(f"################################\nTimestamp: {datetime.datetime.now()}")
         pass
 
-    # Function to receive video stream
     def receive_video(self, client_socket):
         cv2.namedWindow('Video Stream', cv2.WINDOW_NORMAL)  # Create a resizable window
 
-        data_received = False
-        buffer_size = 8192  # Adjusted buffer size to accommodate chunks
         timeout = 1  # Timeout in seconds for select.select
+        buffer_size = 8192  # Adjusted buffer size to accommodate chunks
         received_data = bytearray()
+        expected_data_size = 0  # Initialize expected data size outside the loop
 
         while True:
             try:
@@ -37,42 +36,47 @@ class monitor_receiver:
                     if not data_size_bytes:
                         break  # Exit the loop if no data size received
 
-                    # Acknowledge Receiving Data Size (Optional)
-                    client_socket.sendall(b'ACK')  # Send acknowledgment (ACK)
+                    # Send acknowledgment for data size
+                    client_socket.sendall(b'ACK')  # Send ACK for data size
 
                     # Calculate expected frame size
-                    expected_data_size = int.from_bytes(data_size_bytes, byteorder='big') + 1  # Add 1 for header
+                    expected_data_size = int.from_bytes(data_size_bytes, byteorder='big')
 
                     # Receive data chunk by chunk
                     total_data_received = 0
                     while total_data_received < expected_data_size:
-                        data = client_socket.recv(min(expected_data_size - total_data_received, buffer_size))
+                        data_to_receive = min(expected_data_size - total_data_received, buffer_size)
+                        data = client_socket.recv(data_to_receive)
                         if not data:
-                            logging.error(f"Error: Incomplete chunk received. Expected {expected_data_size}, received {total_data_received}")
-                            break  # Handle incomplete chunk (optional: retry receiving)
+                            logging.error(f"Error: Connection closed or incomplete chunk received. Expected {expected_data_size}, received {total_data_received}")
+                            break  # Handle connection closed or incomplete chunk (optional: retry receiving)
                         received_data.extend(data)
                         total_data_received += len(data)
 
                     # Verify complete frame data received
                     if total_data_received == expected_data_size:
                         # Complete frame received
-                        frame = cv2.imdecode(np.frombuffer(received_data, dtype=np.uint8), cv2.IMREAD_COLOR)
+                        try:
+                            # Decode the frame using cv2.imdecode
+                            frame = cv2.imdecode(np.frombuffer(received_data, dtype=np.uint8), cv2.IMREAD_COLOR)
 
-                        # **Optional Processing:** (Uncomment and modify as needed)
-                        # gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                        # blur = cv2.GaussianBlur(frame, (5, 5), 0)
-                        # ... (apply other processing)
+                            # Display the frame
+                            cv2.imshow('Video Stream', frame)
 
-                        # Display the frame
-                        cv2.imshow('Video Stream', frame)
+                            # Handle keyboard input (optional)
+                            key = cv2.waitKey(1) & 0xFF
+                            if key == ord('q'):
+                                break
 
-                        # Handle keyboard input (optional)
-                        key = cv2.waitKey(1) & 0xFF
-                        if key == ord('q'):
-                            break
+                            # Send acknowledgment for received frame (optional)
+                            # client_socket.sendall(b'ACK')  # Send ACK for received frame (Optional)
 
-                        # Reset buffer for next frame
+                        except Exception as e:
+                            logging.error(f"Error decoding frame: {e}")
+
+                        # Reset buffer and variables for next frame
                         received_data = bytearray()
+                        expected_data_size = 0  # Reset expected size for next frame
                     else:
                         logging.warning(f"Received incomplete frame data. Expected {expected_data_size}, received {total_data_received}")
 
