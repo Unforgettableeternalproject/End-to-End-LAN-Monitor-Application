@@ -1,19 +1,15 @@
 import cv2
 import numpy as np
 import socket
-import pyaudio
 import threading
 import logging
 import datetime
 
-logging.basicConfig(filename='agent.log', level=logging.DEBUG)  # Adjust filename and level as needed
-
 class agent_sender:
-    def __init__(self) -> None:
+    def __init__(self):
+        logging.basicConfig(filename='agent_sender.log', level=logging.DEBUG)  # Adjust filename and level as needed
         logging.info(f"################################\nTimestamp: {datetime.datetime.now().timestamp()}")
-        pass
 
-    # Function to handle video streaming
     def send_video(self, client_socket):
         cap = cv2.VideoCapture(0)  # Open default camera
 
@@ -28,13 +24,9 @@ class agent_sender:
                 _, buffer = cv2.imencode('.jpg', frame)
                 data = buffer.tobytes()
 
-                # Identify data type and prefix with a header byte
-                data_type = b'V'  # Video data marker (e.g., 'V')
-                data_with_header = data_type + data
-
-                # Break data into chunks
+                # Prepend data type header to each chunk
                 chunk_size = 4096
-                chunks = [data_with_header[i:i + chunk_size] for i in range(0, len(data_with_header), chunk_size)]
+                chunks = [b'V' + data[i:i + chunk_size] for i in range(0, len(data), chunk_size)]  # Header for every chunk
 
                 # Send each chunk with its size prefix
                 for chunk in chunks:
@@ -48,39 +40,6 @@ class agent_sender:
             # Release resources
             cap.release()
 
-    # Function to handle audio streaming
-    def send_audio(self, client_socket):
-        CHUNK = 1024
-        FORMAT = pyaudio.paInt16
-        CHANNELS = 1
-        RATE = 44100
-
-        p = pyaudio.PyAudio()
-        stream = p.open(format=FORMAT,
-                        channels=CHANNELS,
-                        rate=RATE,
-                        input=True,
-                        frames_per_buffer=CHUNK)
-        running = True
-
-        while running:
-            try:
-                data = stream.read(CHUNK)
-
-                # Identify data type and prefix with a header byte
-                data_type = b'A'  # Audio data marker (e.g., 'A')
-                data_with_header = data_type + data
-
-                client_socket.sendall(data_with_header)
-            except Exception as e:
-                logging.error(f"Error encountered in sending audio:{e}")
-                running = False  # Set flag to stop the loop
-
-        # Close stream and terminate PyAudio
-        stream.stop_stream()
-        stream.close()
-        p.terminate()
-
     # Main function
     def sender(self, startingPort):
         host = '0.0.0.0'  # Server IP address
@@ -93,17 +52,14 @@ class agent_sender:
         print("Agent is waiting for a connection...")
 
         client_socket, addr = server_socket.accept()
-        print(f"Connection from {addr} has been established. Streaming video and audio...")
+        print(f"Connection from {addr} has been established. Streaming video...")
 
-        # Start threads for video and audio streaming
+        # Start thread for video streaming
         video_thread = threading.Thread(target=self.send_video, args=(client_socket,))
-        audio_thread = threading.Thread(target=self.send_audio, args=(client_socket,))
         video_thread.start()
-        audio_thread.start()
 
-        # Wait for threads to finish
+        # Wait for thread to finish
         video_thread.join()
-        audio_thread.join()
 
         # Close connections and sockets
         client_socket.close()
