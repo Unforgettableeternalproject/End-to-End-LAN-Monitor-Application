@@ -55,16 +55,16 @@ if __name__ == "__main__":
     while not terminate:
         role = input("Choose a role for your further usage (A for agent, M for monitor, E to terminate the application):\nRole: ").upper()
 
-        match role:
+        match role.strip():
             case 'A':
                 ans = input("You have chosen to be the agent, continue? (Y/N) ").upper()
-                if ans == "Y":
+                if ans.strip() == "Y":
                     agent_init()
                 else:
                     pass  # Do nothing if user cancels
             case 'M':
                 ans = input("You have chosen to be the monitor, continue? (Y/N) ").upper()
-                if ans == "Y":
+                if ans.strip() == "Y":
                     monitor_init()
                 else:
                     pass  # Do nothing if user cancels

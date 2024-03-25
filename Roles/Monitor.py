@@ -16,7 +16,12 @@ class monitor_receiver:
         pass
 
     def receive_video(self, client_socket):
-        cv2.namedWindow('Video Stream', cv2.WINDOW_NORMAL)  # Create a resizable window
+        # Set custom window dimensions (width, height)
+        window_width = 800
+        window_height = 500
+        cv2.namedWindow('Real-time Monitor', cv2.WINDOW_NORMAL)  # Create a resizable window
+        cv2.resizeWindow('Real-time Monitor', window_width, window_height)  # Set custom size
+
 
         timeout = 1  # Timeout in seconds for select.select
         buffer_size = 8192  # Adjusted buffer size to accommodate chunks
@@ -61,11 +66,11 @@ class monitor_receiver:
                             frame = cv2.imdecode(np.frombuffer(received_data, dtype=np.uint8), cv2.IMREAD_COLOR)
 
                             # Display the frame
-                            cv2.imshow('Video Stream', frame)
+                            cv2.imshow('Real-time Monitor', frame)
 
                             # Handle keyboard input (optional)
                             key = cv2.waitKey(1) & 0xFF
-                            if key == ord('q'):
+                            if key == ord('q') or cv2.getWindowProperty('Real-time Monitor', cv2.WND_PROP_AUTOSIZE) == -1:
                                 break
 
                             # Send acknowledgment for received frame (optional)
