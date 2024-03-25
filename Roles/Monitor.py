@@ -8,7 +8,7 @@ class monitor_receiver:
     def __init__(self) -> None:
         pass
     # Function to receive video stream
-    def receive_video(self, client_socket):
+    def receive_video(client_socket):
         while True:
             # Receive the size of the frame
             data_size = int.from_bytes(client_socket.recv(4), byteorder='big')
@@ -21,8 +21,10 @@ class monitor_receiver:
                 data += packet
             if not data:
                 break
+            print("Received frame data:", len(data))
             # Convert the received data to an image
             frame = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
+            print("Decoded frame:", frame.shape)
             # Display the frame
             cv2.imshow('Video Stream', frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -43,10 +45,13 @@ class monitor_receiver:
                         frames_per_buffer=CHUNK)
 
         while True:
-            data = client_socket.recv(CHUNK)
-            if not data:
-                break
-            stream.write(data)
+            try:
+                data = client_socket.recv(CHUNK)
+                if not data:
+                    break
+                stream.write(data)
+            except Exception as e:
+                print("Error encountered:", e)
 
         stream.stop_stream()
         stream.close()

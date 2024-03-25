@@ -48,6 +48,7 @@ if __name__ == "__main__":
                 ans = input("You have chosen to be as the agent, continue? (Y/N) ")
                 if(ans == "Y"):
                     agent_Init()
+                    role = input("Process ended. Please enter new role or terminate the application (A, M, E):")
                 else:
                     role = input("Process aborted. Please enter new role or terminate the application (A, M, E):")
                     pass
@@ -55,6 +56,7 @@ if __name__ == "__main__":
                 ans = input("You have chosen to be as the monitor, continue? (Y/N) ")
                 if(ans == "Y"):
                     monitor_Init()
+                    role = input("Process ended. Please enter new role or terminate the application (A, M, E):")
                 else:
                     role = input("Process aborted. Please enter new role or terminate the application (A, M, E):")
                     pass
