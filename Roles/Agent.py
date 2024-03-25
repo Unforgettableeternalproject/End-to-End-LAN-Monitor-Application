@@ -11,12 +11,12 @@ class agent_sender:
 
     # Function to handle video streaming
     def send_video(self, client_socket):
-        cap = cv2.VideoCapture(0)  # Open default camera (index 0)
-        running = True
+        cap = cv2.VideoCapture(0)  # Open default camera
 
-        while running:
-            try:
-                ret, frame = cap.read()  # Read a frame from the camera
+        try:
+            while True:
+                # Read a frame from the camera
+                ret, frame = cap.read()
                 if not ret:
                     break
 
@@ -24,16 +24,21 @@ class agent_sender:
                 _, buffer = cv2.imencode('.jpg', frame)
                 data = buffer.tobytes()
 
-                # Send the size of the frame first
-                client_socket.sendall(len(data).to_bytes(4, byteorder='big'))
-                # Send the frame data
-                client_socket.sendall(data)
-            except Exception as e:
-                print("Error encountered in sending video:", e)
-                running = False  # Set flag to stop the loop
+                # Break data into chunks (e.g., 4096 bytes)
+                chunk_size = 4096
+                chunks = [data[i:i + chunk_size] for i in range(0, len(data), chunk_size)]
 
-        # Release resources
-        cap.release()
+                # Send each chunk with its size prefix
+                for chunk in chunks:
+                    chunk_size = len(chunk)
+                    client_socket.sendall(chunk_size.to_bytes(4, byteorder='big'))  # Send chunk size first
+                    client_socket.sendall(chunk)  # Send the chunk data
+        except Exception as e:
+            print(f"Error encountered in sending video: {e}")
+
+        finally:
+            # Release resources
+            cap.release()
 
     # Function to handle audio streaming
     def send_audio(self, client_socket):
@@ -55,7 +60,7 @@ class agent_sender:
                 data = stream.read(CHUNK)
                 client_socket.sendall(data)
             except Exception as e:
-                print("Error encountered in sending audio:", e)
+                print(f"Error encountered in sending audio:{e}")
                 running = False  # Set flag to stop the loop
 
         # Close stream and terminate PyAudio

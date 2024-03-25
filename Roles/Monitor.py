@@ -4,6 +4,7 @@ import socket
 import pyaudio
 import threading
 import logging
+import select
 
 logging.basicConfig(filename='monitor.log', level=logging.DEBUG)  # Adjust filename and level as needed
 
@@ -14,40 +15,50 @@ class monitor_receiver:
     # Function to receive video stream
     def receive_video(self, client_socket):
         cv2.namedWindow('Video Stream', cv2.WINDOW_NORMAL)  # Create a resizable window
-        data_received = False  # Flag to track if data has been received
-        buffer_size = 4096  # Adjust buffer size if needed
+
+        data_received = False
+        buffer_size = 8192  # Adjusted buffer size to accommodate chunks
+        timeout = 1  # Timeout in seconds for select.select
 
         while True:
             try:
-                # Receive data size
-                data_size_bytes = client_socket.recv(4)
-                if not data_size_bytes:
-                    break  # Exit the loop if no data size is received
-                data_size = int.from_bytes(data_size_bytes, byteorder='big')
-                logging.debug(f"Received data size: {data_size}")
+                # Monitor socket for readability using select.select
+                readable, writable, _ = select.select([client_socket], [], [], timeout)
 
-                # Receive data
-                data = bytearray()
-                total_received = 0
-                while total_received < data_size:
-                    packet = client_socket.recv(min(data_size - total_received, buffer_size))
-                    if not packet:
-                        break
-                    data.extend(packet)
-                    total_received += len(packet)
+                if readable:
+                    # Data is available on the socket
 
-                # Verify data size and decode frame
-                if total_received != data_size:
-                    logging.error("Error: Received incomplete data")
-                    continue
-                frame = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
-                if frame is not None:
-                    logging.debug(f"Decoded frame: {frame.shape}")
-                    cv2.imshow('Video Stream', frame)
-                    if cv2.waitKey(1) & 0xFF == ord('q'):
-                        break
+                    # Receive chunk size
+                    data_size_bytes = client_socket.recv(4)
+                    if not data_size_bytes:
+                        break  # Exit the loop if no data size is received
+                    chunk_size = int.from_bytes(data_size_bytes, byteorder='big')
+                    logging.debug(f"Received chunk size: {chunk_size}")
+
+                    # Receive data chunk
+                    data = bytearray()
+                    total_received = 0
+                    while total_received < chunk_size:
+                        packet = client_socket.recv(min(chunk_size - total_received, buffer_size))
+                        if not packet:
+                            break
+                        data.extend(packet)
+                        total_received += len(packet)
+
+                    # Verify chunk size and process data
+                    if total_received != chunk_size:
+                        logging.error("Error: Received incomplete chunk")
+                        continue
+
+                    # Process received data chunk (logic depends on your video format)
+                    # ... (assuming multiple chunks contribute to a complete frame)
+
+                else:
+                    # No data received within timeout, consider adding a message
+                    logging.debug("No video data received yet.")
+
             except Exception as e:
-                logging.error("Error receiving video:", e)
+                logging.error(f"Error receiving video: {e}")
                 break
 
         cv2.destroyAllWindows()
@@ -73,7 +84,7 @@ class monitor_receiver:
                     break
                 stream.write(data)
             except Exception as e:
-                logging.error("Error encountered:", e)
+                logging.error(f"Error encountered:{e}")
                 break
 
         stream.stop_stream()
@@ -89,7 +100,7 @@ class monitor_receiver:
             client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             client_socket.connect((host, port))
         except Exception as e:
-            logging.error("Error encountered:", e)
+            logging.error(f"Error encountered:{e}")
             return
 
         print("Connection successfully established! Receiving video and audio from agent...")
