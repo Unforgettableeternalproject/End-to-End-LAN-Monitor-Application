@@ -4,6 +4,7 @@ import socket
 import pyaudio
 import threading
 
+
 class agent_sender:
     def __init__(self) -> None:
         pass
@@ -11,23 +12,28 @@ class agent_sender:
     # Function to handle video streaming
     def send_video(self, client_socket):
         cap = cv2.VideoCapture(0)  # Open default camera (index 0)
-        while True:
-            ret, frame = cap.read()  # Read a frame from the camera
-            if not ret:
-                break
-            # Encode the frame as JPEG
-            _, buffer = cv2.imencode('.jpg', frame)
-            data = buffer.tobytes()
+        running = True
+
+        while running:
             try:
+                ret, frame = cap.read()  # Read a frame from the camera
+                if not ret:
+                    break
+
+                # Encode the frame as JPEG
+                _, buffer = cv2.imencode('.jpg', frame)
+                data = buffer.tobytes()
+
                 # Send the size of the frame first
                 client_socket.sendall(len(data).to_bytes(4, byteorder='big'))
                 # Send the frame data
                 client_socket.sendall(data)
             except Exception as e:
                 print("Error encountered in sending video:", e)
-                break  # Exit the loop on error
+                running = False  # Set flag to stop the loop
+
+        # Release resources
         cap.release()
-        client_socket.close()  # Close the connection
 
     # Function to handle audio streaming
     def send_audio(self, client_socket):
@@ -42,24 +48,25 @@ class agent_sender:
                         rate=RATE,
                         input=True,
                         frames_per_buffer=CHUNK)
+        running = True
 
-        while True:
+        while running:
             try:
                 data = stream.read(CHUNK)
                 client_socket.sendall(data)
             except Exception as e:
                 print("Error encountered in sending audio:", e)
-                break  # Exit the loop on error
+                running = False  # Set flag to stop the loop
 
+        # Close stream and terminate PyAudio
         stream.stop_stream()
         stream.close()
         p.terminate()
-        client_socket.close()  # Close the connection
 
     # Main function
     def sender(self, startingPort):
         host = '0.0.0.0'  # Server IP address
-        port = startingPort       # Port to listen on
+        port = startingPort  # Port to listen on
 
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.bind((host, port))
@@ -76,8 +83,10 @@ class agent_sender:
         video_thread.start()
         audio_thread.start()
 
+        # Wait for threads to finish
         video_thread.join()
         audio_thread.join()
 
+        # Close connections and sockets
         client_socket.close()
         server_socket.close()

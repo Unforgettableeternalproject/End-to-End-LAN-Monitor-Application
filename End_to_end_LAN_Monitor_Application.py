@@ -1,70 +1,75 @@
 import Roles.Agent as agent
 import Roles.Monitor as monitor
 import re
+import socket
 
-def agent_Init():
-    print("################################")
-    port = 0
+def get_valid_port(message):
+    while True:
+        try:
+            port = int(input(message))
+            if 1023 < port < 49152:
+                # Additional check if port is in use (using socket)
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                try:
+                    sock.bind(('localhost', port))
+                    sock.close()
+                    return port
+                except OSError:
+                    print(f"Port {port} is already in use. Please try a different one.")
+            else:
+                print("Invalid port number. Please enter a value between 1024 and 49151.")
+        except ValueError:
+            print("Invalid input. Please enter a valid integer.")
 
-    while(not (port > 1023 and port < 49152)):
-        filt = input("Agent: Please enter a valid port number to start the connection. (1024~49151)\nPort:") if port != 0 else input("Please enter a VALID port number. (1024~49151)\nPort:")
-        port = int(filt) if filt.isnumeric() else -1
-
-    print("Starting listening process...")
-    Agent.sender(port)
-
-def monitor_Init():
+def get_valid_ip():
     regex = "^((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])$"
+    while True:
+        ip_address = input("Enter your target IP address (IPv4): ")
+        if re.search(regex, ip_address):
+            return ip_address
+        else:
+            print("Invalid IP address. Please enter a valid IPv4 address.")
 
+def agent_init():
     print("################################")
-    host_ip = ""
-    port = 0
-    first = True
-    while(not re.search(regex, host_ip)):
-        host_ip = input("Monitor: Please enter your target ip address. (IPv4)\nHost:") if first else input("Please enter a VALID ip address. (IPv4)\nHost:")
-        first = False
+    port = get_valid_port("Agent: Please enter a valid port number to start the connection (1024~49151):\nPort: ")
+    print("Starting listening process...")
+    agent.sender(port)
 
-    while(not (port > 1023 and port < 49152)):
-        filt = input("Monitor: Please enter your target port number. (1024~49151)\nPort:") if port != 0 else input("Please enter a VALID port number. (1024~49151)\nPort:")
-        port = int(filt) if filt.isnumeric() else -1
-
+def monitor_init():
+    print("################################")
+    host_ip = get_valid_ip()
+    port = get_valid_port("Monitor: Please enter your target port number (1024~49151):\nPort: ")
     print("Establishing connection...")
-    Monitor.receiver(host_ip, port)
+    monitor.receiver(host_ip, port)
 
 if __name__ == "__main__":
     # Setup Terminal
     terminate = False
 
-    Agent = agent.agent_sender()
-    Monitor = monitor.monitor_receiver()
-
     print("################################")
     print("Welcome to Bernie's End-to-End Monitor Application!\n")
-    role = input("Choose a role for your further usage. (A for agent, M for monitor, E to terminate the application)\nRole:")
-    
-    while(not terminate):
-        match(role):
+
+    while not terminate:
+        role = input("Choose a role for your further usage (A for agent, M for monitor, E to terminate the application):\nRole: ").upper()
+
+        match role:
             case 'A':
-                ans = input("You have chosen to be as the agent, continue? (Y/N) ")
-                if(ans == "Y"):
-                    agent_Init()
-                    role = input("Process ended. Please enter new role or terminate the application (A, M, E):")
+                ans = input("You have chosen to be the agent, continue? (Y/N) ").upper()
+                if ans == "Y":
+                    agent_init()
                 else:
-                    role = input("Process aborted. Please enter new role or terminate the application (A, M, E):")
-                    pass
+                    pass  # Do nothing if user cancels
             case 'M':
-                ans = input("You have chosen to be as the monitor, continue? (Y/N) ")
-                if(ans == "Y"):
-                    monitor_Init()
-                    role = input("Process ended. Please enter new role or terminate the application (A, M, E):")
+                ans = input("You have chosen to be the monitor, continue? (Y/N) ").upper()
+                if ans == "Y":
+                    monitor_init()
                 else:
-                    role = input("Process aborted. Please enter new role or terminate the application (A, M, E):")
-                    pass
-                pass
+                    pass  # Do nothing if user cancels
             case 'E':
                 terminate = True
-            case _: # Invalid Input
-                role = input("Invalid input, please enter legal command (A, M, E):")
+            case _:
+                print("Invalid input. Please enter a legal command (A, M, E).")
 
     print("Application terminated.")
     print("################################")
