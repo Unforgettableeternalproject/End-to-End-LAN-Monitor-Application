@@ -1,4 +1,4 @@
-﻿# End-to-end LAN Monitor Application
+﻿# End-to-End LAN Monitor Application
 
 "I heard Bernie is trying to do something new, like a...monitoring application?"
 "Yep, pretty accurate. I guess he is trying to do things other than front-end development huh?"
