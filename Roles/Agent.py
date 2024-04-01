@@ -12,21 +12,24 @@ class agent_sender:
         logging.info(f"################################\nTimestamp: {datetime.datetime.now().timestamp()}")
         self.sequence_number = 0  # Initialize sequence number
         self.expected_ack = 0  # Expected acknowledgment number
+        self.stop_event = threading.Event()  # Create a threading event for termination
+
 
     def capture_video(self, client_socket):
         cap = cv2.VideoCapture(0)  # Open default camera
-
+        print("Video...")
         try:
             while True:
                 ret, frame = cap.read()
                 if not ret: break
 
-            # Encode the frame as JPEG
-            _, buffer = cv2.imencode('.jpg', frame)
-            video_data = buffer.tobytes()
-
-            # Send video data using send_data function with flow control
-            self.send_data(client_socket, 'video', video_data)
+                # Encode the frame as JPEG
+                _, buffer = cv2.imencode('.jpg', frame)
+                video_data = buffer.tobytes()
+                print("Sending Video...")
+                # Send video data using send_data function with flow control
+                self.send_data(client_socket, 'video', video_data)
+                print("Video Sent...with a size of", len(video_data))
 
         except Exception as e:
             logging.error(f"Error encountered in capturing video: {e}")
@@ -36,8 +39,7 @@ class agent_sender:
             cap.release()
 
     def capture_audio(self, client_socket):
-        import pyaudio
-
+        print("Audio...")
         # Define audio parameters (adjust as needed)
         CHUNK = 1024  # Audio data chunk size in bytes
         FORMAT = pyaudio.paInt16  # Audio format (16-bit signed integer)
@@ -53,9 +55,11 @@ class agent_sender:
         try:
             while True:
             # Read audio data from microphone
-                data = stream.read(CHUNK)
+                audio_data = stream.read(CHUNK)
             # Send audio data using send_data function with flow control
-                self.send_data(client_socket, 'audio', data)
+                print("Sending Audio...")
+                self.send_data(client_socket, 'audio', audio_data)
+                print("Audio Sent...with a size of", len(audio_data))
 
         except Exception as e:
             logging.error(f"Error encountered in capturing audio: {e}")
@@ -69,15 +73,15 @@ class agent_sender:
     def send_data(self, client_socket, data_type, data):
         # Define packet header size (adjust as needed)
         HEADER_SIZE = 4
-
+        print("Hi...")
         # Generate unique sequence number
         sequence_number = self.get_next_sequence_number()
 
-        # Create packet header
+        data_type_bytes = data_type.encode('utf-8')[:5].ljust(5, b'\0')  # Pad to 5 bytes
         header = (
-            sequence_number.to_bytes(2, byteorder='big') +  # 2-byte sequence number
-            data_type.encode('utf-8') +                     # Data type (video/audio)
-            len(data).to_bytes(HEADER_SIZE - 2, byteorder='big')  # Payload size (optional)
+            sequence_number.to_bytes(2, byteorder='big') +
+            data_type_bytes +
+            len(data).to_bytes(2, byteorder='big')
         )
 
         # Combine header and data
@@ -85,6 +89,7 @@ class agent_sender:
 
         # Implement flow control with cumulative ACKs
         while sequence_number >= self.expected_ack:  # Loop until expected ACK is received
+            print("Hey...")
             # Send packet
             client_socket.sendall(packet)
 

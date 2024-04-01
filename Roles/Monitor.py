@@ -8,8 +8,41 @@ import select
 import datetime
 
 logging.basicConfig(filename='monitor.log', level=logging.DEBUG)  # Adjust filename and level as needed
+HEADER_SIZE = 9
 
+class DataBuffer:
+    def __init__(self, buffer_size):
+        self.buffer = bytearray(buffer_size)
+        self.head = 0  # Index of the first element in the buffer
+        self.tail = 0  # Index of the next element to be inserted
+        self.buffer_size = buffer_size
+        self.lock = threading.Lock()  # Lock for thread-safe access
 
+    def is_empty(self):
+        return self.head == self.tail
+
+    def is_full(self):
+        return (self.tail + 1) % self.buffer_size == self.head
+
+    def put(self, data):
+        self.lock.acquire()
+        while self.is_full():
+            # Implement handling for buffer overflow (e.g., wait, drop data)
+            pass
+        self.buffer[self.tail] = data
+        self.tail = (self.tail + 1) % self.buffer_size
+        self.lock.release()
+
+    def get(self):
+        self.lock.acquire()
+        while self.is_empty():
+            # Implement handling for empty buffer (e.g., wait)
+            pass
+        data = self.buffer[self.head]
+        self.head = (self.head + 1) % self.buffer_size
+        self.lock.release()
+        return data
+  
 class monitor_receiver:
     def __init__(self) -> None:
         logging.info(f"################################\nTimestamp: {datetime.datetime.now()}")
@@ -110,30 +143,32 @@ class monitor_receiver:
             client_socket.connect((host, port))
         except Exception as e:
             logging.error(f"Error encountered:{e}")
-        return
+            return
 
         print("Connection successfully established! Receiving video and audio from agent...")
-
-        # Define buffer size (adjust as needed)
-        buffer_size = 8192
 
         while True:
             try:
                 # Monitor socket for readability using select.select
                 readable, writable, _ = select.select([client_socket], [], [], 1)  # Set a timeout if desired
-
+                print("Readable" if readable else "Not Readable")
                 if readable:
                     # Data is available on the socket
 
                     # Receive packet header
-                    header_data = client_socket.recv(4)  # Assuming header size is 4 bytes
+                    header_data = client_socket.recv(HEADER_SIZE)
                     if not header_data:
                         break  # Exit the loop if no header received
 
-                # Extract data type and payload size from header
-                    data_type = header_data.decode('utf-8')
-                    data_size = int.from_bytes(client_socket.recv(4), byteorder='big')
+                    # Extract data type and payload size from header
+                    sequence_number = int.from_bytes(header_data[0:2], byteorder='big')
+                    data_type_bytes = header_data[2:7]  # Assuming fixed data type field at position 2-6
+                    data_type = data_type_bytes.rstrip(b'\0').decode('utf-8')  # Remove trailing null bytes
+                    #data_type = header_data[2:3].decode('utf-8')  # Assuming 1-byte data type
+                    data_size = int.from_bytes(header_data[7:9], byteorder='big')
 
+                    logging.info(f"Sequence Number: {sequence_number}")
+                    print(f"The received data type is {data_type}, also data size is {data_size}")
                     # Receive data based on data type
                     if data_type == 'video':
                         self.receive_video(client_socket, data_size)  # Call video receive function
