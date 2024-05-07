@@ -11,7 +11,7 @@
     <OutputPath>.</OutputPath>
     <Name>End-to-end LAN Monitor Application</Name>
     <RootNamespace>End-to-end LAN Monitor Application</RootNamespace>
-    <InterpreterId>MSBuild|env_pc|$(MSBuildProjectFullPath)</InterpreterId>
+    <InterpreterId>MSBuild|env_lp|$(MSBuildProjectFullPath)</InterpreterId>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>

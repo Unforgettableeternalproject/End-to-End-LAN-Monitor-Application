@@ -9,7 +9,7 @@ import pyaudio
 class agent_sender:
     def __init__(self):
         logging.basicConfig(filename='agent_sender.log', level=logging.DEBUG)  # Adjust filename and level as needed
-        logging.info(f"################################\nTimestamp: {datetime.datetime.now().timestamp()}")
+        logging.info(f"################################\nTimestamp: {datetime.datetime.now()}")
         self.sequence_number = 0  # Initialize sequence number
         self.expected_ack = 0  # Expected acknowledgment number
         self.stop_event = threading.Event()  # Create a threading event for termination
@@ -21,11 +21,14 @@ class agent_sender:
         try:
             while True:
                 ret, frame = cap.read()
-                if not ret: break
+                if not ret:
+                    logging.error("Failed to capture frame from the camera.")
+                    break
 
                 # Encode the frame as JPEG
                 _, buffer = cv2.imencode('.jpg', frame)
                 video_data = buffer.tobytes()
+                logging.debug(f"Size of video data: {len(video_data)} bytes")  # Add logging here
                 print("Sending Video...")
                 # Send video data using send_data function with flow control
                 self.send_data(client_socket, 'video', video_data)
@@ -37,6 +40,7 @@ class agent_sender:
         finally:
             # Release resources
             cap.release()
+
 
     def capture_audio(self, client_socket):
         print("Audio...")
@@ -73,7 +77,7 @@ class agent_sender:
     def send_data(self, client_socket, data_type, data):
         # Define packet header size (adjust as needed)
         HEADER_SIZE = 4
-        print("Hi...")
+
         # Generate unique sequence number
         sequence_number = self.get_next_sequence_number()
 
@@ -87,23 +91,32 @@ class agent_sender:
         # Combine header and data
         packet = header + data
 
-        # Implement flow control with cumulative ACKs
-        while sequence_number >= self.expected_ack:  # Loop until expected ACK is received
-            print("Hey...")
-            # Send packet
-            client_socket.sendall(packet)
+        # Send packet
+        client_socket.sendall(packet)
 
-            # Receive acknowledgment (blocking)
-            ack_data = client_socket.recv(HEADER_SIZE)
-            if not ack_data:
-                logging.error("Connection closed by receiver.")
+        # Implement acknowledgment (ACK) mechanism
+        ack_received = False
+        while not ack_received:
+            try:
+                # Receive acknowledgment (blocking)
+                ack_data = client_socket.recv(HEADER_SIZE)
+                if not ack_data:
+                    logging.error("Connection closed by receiver.")
+                    break
+
+                # Extract received acknowledgment number
+                received_ack = int.from_bytes(ack_data, byteorder='big')
+
+                # Check if the received ACK matches the sent sequence number
+                if received_ack == sequence_number:
+                    ack_received = True
+                else:
+                    # Resend packet if the received ACK does not match the sent sequence number
+                    client_socket.sendall(packet)
+
+            except Exception as e:
+                logging.error(f"Error receiving ACK: {e}")
                 break
-
-            # Extract received acknowledgment number
-            received_ack = int.from_bytes(ack_data, byteorder='big')
-
-            # Update expected ACK based on received ACK
-            self.expected_ack = min(received_ack + 1, sequence_number + 1)  # Handle potential packet loss
 
     def get_next_sequence_number(self):
         self.sequence_number = (self.sequence_number + 1) % (1 << 16)  # Wrap around after reaching max value (2^16 - 1)
@@ -125,15 +138,15 @@ class agent_sender:
 
         # Start threads for video and audio capture, passing the client socket
         video_thread = threading.Thread(target=self.capture_video, args=(client_socket,))
-        audio_thread = threading.Thread(target=self.capture_audio, args=(client_socket,))
+        #audio_thread = threading.Thread(target=self.capture_audio, args=(client_socket,))
 
         # Start threads
         video_thread.start()
-        audio_thread.start()
+        #audio_thread.start()
 
         # Wait for threads to finish
         video_thread.join()
-        audio_thread.join()
+        #audio_thread.join()
 
         # Close connections and socket
         client_socket.close()
