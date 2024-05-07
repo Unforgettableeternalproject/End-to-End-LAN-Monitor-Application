@@ -10,23 +10,30 @@ import datetime
 logging.basicConfig(filename='monitor.log', level=logging.DEBUG)  # Adjust filename and level as needed
 HEADER_SIZE = 9
 METADATA_SIZE = 2
+CHUNK_SIZE = 1024
 
 class DataBuffer:
     def __init__(self, buffer_size):
         self.buffer = bytearray(buffer_size)
         self.head = 0 
         self.tail = 0 
+        self.chunk_count = 0
         self.buffer_size = buffer_size
         self.lock = threading.Lock()
         self.space_available = threading.Condition(self.lock)
         self.data_available = threading.Condition(self.lock)
 
     def is_empty(self):
+        print("Empty!")
         return self.head == self.tail
 
     def is_full(self):
+        print("Full!")
         return (self.tail + 1) % self.buffer_size == self.head
 
+    def is_complete_frame(self, total_chunk):
+        return self.chunk_count == total_chunk
+        
     def put(self, data):
         with self.space_available:
             while self.is_full():
@@ -35,6 +42,7 @@ class DataBuffer:
             for byte in data:
                 self.buffer[self.tail] = byte
                 self.tail = (self.tail + 1) % self.buffer_size
+            self.chunk_count += 1
             self.data_available.notify()
 
     def get(self):
@@ -44,6 +52,7 @@ class DataBuffer:
                 self.data_available.wait()
             data = bytes(self.buffer)
             self.head = (self.head + 1) % self.buffer_size
+            self.chunk_count = 0
             self.space_available.notify()
         return data
   
@@ -52,35 +61,21 @@ class monitor_receiver:
         logging.info(f"################################\nTimestamp: {datetime.datetime.now()}")
         pass
 
-    def receive_video(self, client_socket, video_buffer, data_size, total_chunks, sequence_number):
+    def receive_video(self, client_socket, video_buffer, chunk_data, total_chunks, sequence_number):
         try:
-            chunk_size = 1024
-
-            received_chunks = 0
-            frame_data = bytearray()
-
-            while received_chunks < total_chunks:
-                # Receive video chunk from the sender
-                chunk = client_socket.recv(chunk_size)
-
-                # Send acknowledgment (ACK) for received packet (sender implementation handles retransmission)
-                ack_data = sequence_number.to_bytes(2, byteorder='big')
-                client_socket.sendall(ack_data)
-                if not chunk:
-                    break
-
-                # Put received chunk into the frame data
-                frame_data.extend(chunk)
-
-                received_chunks += 1
+            video_buffer.put(chunk_data)
 
             # Reconstruct and display the frame if all chunks for the frame have been received
-            if received_chunks == total_chunks:
-                received_chunks = 0
+            if video_buffer.is_complete_frame(total_chunks):
+                print("Hi, this is your data:", video_buffer.tail)
+                frame_data = video_buffer.get()
                 frame = cv2.imdecode(np.frombuffer(frame_data, dtype=np.uint8), cv2.IMREAD_COLOR)
                 cv2.imshow('Real-time Monitor', frame)
                 cv2.waitKey(1)
 
+            # Send acknowledgment (ACK) for received packet (sender implementation handles retransmission)
+            ack_data = sequence_number.to_bytes(2, byteorder='big')
+            client_socket.sendall(ack_data)
 
         except Exception as e:
             logging.error(f"Error receiving video: {e}")
@@ -163,6 +158,7 @@ class monitor_receiver:
                     # Receive packet header
                     header_data = client_socket.recv(HEADER_SIZE)
                     metadata = client_socket.recv(METADATA_SIZE)
+                    chunk_data = client_socket.recv(CHUNK_SIZE)
                     if not header_data:
                         break  # Exit the loop if no header received
 
@@ -176,10 +172,10 @@ class monitor_receiver:
 
                     logging.info(f"Sequence Number: {sequence_number}")
                     print(f"The received data type is {data_type}, also data size is {data_size}")
-                    print(total_chunks)
+
                     # Receive data based on data type
                     if data_type == 'video':
-                        self.receive_video(client_socket, video_buffer, data_size, total_chunks, sequence_number)  # Call video receive function
+                        self.receive_video(client_socket, video_buffer, chunk_data,  total_chunks, sequence_number)  # Call video receive function
                     elif data_type == 'audio':
                         # Ignored
                         pass
