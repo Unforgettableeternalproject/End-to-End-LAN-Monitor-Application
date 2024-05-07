@@ -28,19 +28,25 @@ class agent_sender:
                 # Encode the frame as JPEG
                 _, buffer = cv2.imencode('.jpg', frame)
                 video_data = buffer.tobytes()
-                logging.debug(f"Size of video data: {len(video_data)} bytes")  # Add logging here
-                print("Sending Video...")
-                # Send video data using send_data function with flow control
-                self.send_data(client_socket, 'video', video_data)
-                print("Video Sent...with a size of", len(video_data))
+
+                # Split the data into chunks
+                chunk_size = 1024  # Adjust as needed
+                total_chunks = (len(video_data) + chunk_size - 1) // chunk_size  # Calculate total number of chunks
+                metadata = total_chunks.to_bytes(2, byteorder='big')  # Encode total number of chunks as metadata
+                print(total_chunks)
+                for i in range(0, len(video_data), chunk_size):
+                    chunk = video_data[i:i+chunk_size]
+                    print("Sending Video Chunk...")
+                    # Send video chunk and metadata using send_data function with flow control
+                    self.send_data(client_socket, 'video_chunk', metadata + chunk)
+                    print("Video Chunk Sent...with a size of", len(chunk))
 
         except Exception as e:
-            logging.error(f"Error encountered in capturing video: {e}")
+            logging.error(f"Error encountered in sending video: {e}")
 
         finally:
             # Release resources
             cap.release()
-
 
     def capture_audio(self, client_socket):
         print("Audio...")
@@ -76,7 +82,7 @@ class agent_sender:
 
     def send_data(self, client_socket, data_type, data):
         # Define packet header size (adjust as needed)
-        HEADER_SIZE = 4
+        HEADER_SIZE = 9
 
         # Generate unique sequence number
         sequence_number = self.get_next_sequence_number()
@@ -98,15 +104,16 @@ class agent_sender:
         ack_received = False
         while not ack_received:
             try:
+                print("Debug")
                 # Receive acknowledgment (blocking)
-                ack_data = client_socket.recv(HEADER_SIZE)
+                ack_data = client_socket.recv(2)
                 if not ack_data:
                     logging.error("Connection closed by receiver.")
                     break
 
                 # Extract received acknowledgment number
                 received_ack = int.from_bytes(ack_data, byteorder='big')
-
+                print(received_ack, ":", sequence_number)
                 # Check if the received ACK matches the sent sequence number
                 if received_ack == sequence_number:
                     ack_received = True
@@ -117,6 +124,7 @@ class agent_sender:
             except Exception as e:
                 logging.error(f"Error receiving ACK: {e}")
                 break
+
 
     def get_next_sequence_number(self):
         self.sequence_number = (self.sequence_number + 1) % (1 << 16)  # Wrap around after reaching max value (2^16 - 1)
@@ -136,7 +144,6 @@ class agent_sender:
         client_socket, addr = server_socket.accept()
         print(f"Connection from {addr} has been established. Streaming video and audio...")
 
-        # Start threads for video and audio capture, passing the client socket
         video_thread = threading.Thread(target=self.capture_video, args=(client_socket,))
         #audio_thread = threading.Thread(target=self.capture_audio, args=(client_socket,))
 

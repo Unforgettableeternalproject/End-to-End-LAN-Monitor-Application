@@ -9,6 +9,7 @@ import datetime
 
 logging.basicConfig(filename='monitor.log', level=logging.DEBUG)  # Adjust filename and level as needed
 HEADER_SIZE = 9
+METADATA_SIZE = 2
 
 class DataBuffer:
     def __init__(self, buffer_size):
@@ -51,29 +52,38 @@ class monitor_receiver:
         logging.info(f"################################\nTimestamp: {datetime.datetime.now()}")
         pass
 
-    def receive_video(self, client_socket, video_buffer, data_size):
-        received_data = 0
-        
-        while received_data < data_size:
-          data_to_receive = min(data_size - received_data, video_buffer.buffer_size)
-          data = client_socket.recv(data_to_receive)
-          if not data:
-            logging.error(f"Error: Connection closed or incomplete chunk received. Expected {data_size}, received {received_data}")
-            break
-          received_data += len(data)
+    def receive_video(self, client_socket, video_buffer, data_size, total_chunks, sequence_number):
+        try:
+            chunk_size = 1024
 
-          # Put received data into the video buffer
-          video_buffer.put(data)
+            received_chunks = 0
+            frame_data = bytearray()
 
-    def decode_and_display(self, video_buffer):
-        while True:
-            try:
-                frame_data = video_buffer.get()
+            while received_chunks < total_chunks:
+                # Receive video chunk from the sender
+                chunk = client_socket.recv(chunk_size)
+
+                # Send acknowledgment (ACK) for received packet (sender implementation handles retransmission)
+                ack_data = sequence_number.to_bytes(2, byteorder='big')
+                client_socket.sendall(ack_data)
+                if not chunk:
+                    break
+
+                # Put received chunk into the frame data
+                frame_data.extend(chunk)
+
+                received_chunks += 1
+
+            # Reconstruct and display the frame if all chunks for the frame have been received
+            if received_chunks == total_chunks:
+                received_chunks = 0
                 frame = cv2.imdecode(np.frombuffer(frame_data, dtype=np.uint8), cv2.IMREAD_COLOR)
                 cv2.imshow('Real-time Monitor', frame)
                 cv2.waitKey(1)
-            except Exception as e:
-                logging.error(f"Error decoding frame: {e}")
+
+
+        except Exception as e:
+            logging.error(f"Error receiving video: {e}")
 
     def receive_audio(self, client_socket, audio_buffer, data_size):
         received_data = 0
@@ -142,8 +152,6 @@ class monitor_receiver:
 
         # Initialize video buffer and decoding thread
         video_buffer = DataBuffer(buffer_size=131071)
-        decoding_thread = threading.Thread(target=self.decode_and_display, args=(video_buffer,))
-        decoding_thread.start()
 
         while True:
             try:
@@ -154,6 +162,7 @@ class monitor_receiver:
 
                     # Receive packet header
                     header_data = client_socket.recv(HEADER_SIZE)
+                    metadata = client_socket.recv(METADATA_SIZE)
                     if not header_data:
                         break  # Exit the loop if no header received
 
@@ -163,27 +172,22 @@ class monitor_receiver:
                     data_type = data_type_bytes.rstrip(b'\0').decode('utf-8')  # Remove trailing null bytes
                     data_size = int.from_bytes(header_data[7:9], byteorder='big')
 
+                    total_chunks = int.from_bytes(metadata, byteorder='big')  # Extract total number of chunks
+
                     logging.info(f"Sequence Number: {sequence_number}")
                     print(f"The received data type is {data_type}, also data size is {data_size}")
-
+                    print(total_chunks)
                     # Receive data based on data type
                     if data_type == 'video':
-                        self.receive_video(client_socket, video_buffer, data_size)  # Call video receive function
+                        self.receive_video(client_socket, video_buffer, data_size, total_chunks, sequence_number)  # Call video receive function
                     elif data_type == 'audio':
                         # Ignored
                         pass
                     else:
                         logging.warning(f"Unknown data type received: {data_type}")
 
-                    # Send acknowledgment (ACK) for received packet (sender implementation handles retransmission)
-                    ack_data = sequence_number.to_bytes(2, byteorder='big')
-                    client_socket.sendall(ack_data)
-                    
             except Exception as e:
                 logging.error(f"Error receiving data: {e}")
                 break
 
         client_socket.close()
-
-        # Wait for the decoding thread to finish
-        decoding_thread.join()
