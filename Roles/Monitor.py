@@ -9,6 +9,7 @@ import select
 HEADER_SIZE = 9
 CHUNK_SIZE = 8192
 METADATA_SIZE = 2
+CHUNK_SIZE = 1024
 
 class DataBuffer:
     def __init__(self, buffer_size):
@@ -22,9 +23,11 @@ class DataBuffer:
         self.data_available = threading.Condition(self.lock)
 
     def is_empty(self):
+        print("Empty!")
         return self.head == self.tail
 
     def is_full(self):
+        print("Full!")
         return (self.tail + 1) % self.buffer_size == self.head
 
     def is_complete_frame(self, total_chunks):
