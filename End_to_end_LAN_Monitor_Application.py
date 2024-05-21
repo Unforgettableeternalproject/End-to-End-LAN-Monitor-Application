@@ -34,16 +34,16 @@ def agent_init():
     print("################################")
     port = get_valid_port("Agent: Please enter a valid port number to start the connection (1024~49151):\nPort: ")
     print("Starting listening process...")
-    agent_sender = agent.agent_sender()
-    agent_sender.sender(port)
+    agent_sender = agent.agent_sender("1.1.1.1", port)
+    agent_sender.sender()
 
 def monitor_init():
     print("################################")
     host_ip = get_valid_ip()
     port = get_valid_port("Monitor: Please enter your target port number (1024~49151):\nPort: ")
     print("Establishing connection...")
-    monitor_receiver = monitor.monitor_receiver()
-    monitor_receiver.receiver(host_ip, port)
+    monitor_receiver = monitor.monitor_receiver(host_ip, port)
+    monitor_receiver.receiver()
 
 if __name__ == "__main__":
     # Setup Terminal
